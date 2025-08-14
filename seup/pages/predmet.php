@@ -224,6 +224,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    // Handle signature check request
+    if (isset($_POST['action']) && GETPOST('action') === 'check_signatures') {
+        header('Content-Type: application/json');
+        ob_end_clean();
+        
+        require_once __DIR__ . '/../class/pdf_signature_detector.class.php';
+        
+        $relative_path = Predmet_helper::getPredmetFolderPath($caseId, $db);
+        $full_path = DOL_DATA_ROOT . '/ecm/' . $relative_path;
+        
+        $pdf_files = [];
+        if (is_dir($full_path)) {
+            $files = scandir($full_path);
+            foreach ($files as $file) {
+                if (pathinfo($file, PATHINFO_EXTENSION) === 'pdf') {
+                    $pdf_files[] = $full_path . $file;
+                }
+            }
+        }
+        
+        $results = PDF_Signature_Detector::batchDetectSignatures($pdf_files);
+        
+        echo json_encode([
+            'success' => true,
+            'results' => $results,
+            'total_pdfs' => count($pdf_files)
+        ]);
+        exit;
+    }
     // File existence check
     if ($_SERVER['REQUEST_METHOD'] === 'GET' && GETPOST('action') === 'check_file_exists') {
         ob_end_clean();
@@ -462,6 +491,9 @@ print '<i class="fas fa-search me-2"></i>Pretraži dokumente';
 print '</button>';
 print '<button type="button" class="seup-btn seup-btn-secondary">';
 print '<i class="fas fa-sort me-2"></i>Sortiraj';
+print '</button>';
+print '<button type="button" class="seup-btn seup-btn-secondary" id="checkSignaturesBtn">';
+print '<i class="fas fa-certificate me-2"></i>Provjeri potpise';
 print '</button>';
 if (Cloud_helper::isNextcloudConfigured()) {
     require_once __DIR__ . '/../class/nextcloud_api.class.php';
@@ -705,6 +737,13 @@ document.addEventListener("DOMContentLoaded", function() {
         });
     }
 
+    // Signature check functionality
+    const checkSignaturesBtn = document.getElementById('checkSignaturesBtn');
+    if (checkSignaturesBtn) {
+        checkSignaturesBtn.addEventListener('click', function() {
+            performSignatureCheck(this);
+        });
+    }
     function performEcmRescan(button) {
         button.classList.add('seup-loading');
         
@@ -750,6 +789,53 @@ document.addEventListener("DOMContentLoaded", function() {
         });
     }
 
+    function performSignatureCheck(button) {
+        button.classList.add('seup-loading');
+        
+        const formData = new FormData();
+        formData.append('action', 'check_signatures');
+        
+        fetch('', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                let signedCount = 0;
+                let unsignedCount = 0;
+                
+                Object.values(data.results).forEach(result => {
+                    if (result.status === 'signed') signedCount++;
+                    else if (result.status === 'unsigned') unsignedCount++;
+                });
+                
+                let message = `Provjera potpisa završena! `;
+                message += `PDF datoteka: ${data.total_pdfs}, `;
+                message += `potpisano: ${signedCount}, `;
+                message += `nepotpisano: ${unsignedCount}`;
+                
+                showMessage(message, 'success');
+                
+                // Show detailed results in console for now
+                console.log('Signature check results:', data.results);
+                
+                // Refresh documents list to show signature icons
+                setTimeout(() => {
+                    refreshDocumentsList();
+                }, 1000);
+            } else {
+                showMessage('Greška pri provjeri potpisa: ' + data.error, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Signature check error:', error);
+            showMessage('Došlo je do greške pri provjeri potpisa', 'error');
+        })
+        .finally(() => {
+            button.classList.remove('seup-loading');
+        });
+    }
     function performSync(syncType, button) {
         button.classList.add('seup-loading');
         

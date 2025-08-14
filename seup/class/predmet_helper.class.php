@@ -403,6 +403,7 @@ class Predmet_helper
             $documentTableHTML .= '<th>Datum</th>';
             $documentTableHTML .= '<th>Kreirao</th>';
             $documentTableHTML .= '<th>Izvor</th>';
+            $documentTableHTML .= '<th>Potpis</th>';
             $documentTableHTML .= '<th>Akcije</th>';
             $documentTableHTML .= '</tr>';
             $documentTableHTML .= '</thead>';
@@ -418,6 +419,7 @@ class Predmet_helper
                     $source_badge = '<span class="badge bg-info">Nextcloud</span>';
                     $edit_button = $doc->edit_url ? 
                         '<a href="' . $doc->edit_url . '" class="btn btn-outline-success btn-sm me-1" target="_blank" title="Uredi u Nextcloud"><i class="fas fa-edit"></i></a>' : '';
+                    $signature_status = '<span class="text-muted"><i class="fas fa-question"></i></span>';
                 } else {
                     // Dolibarr ECM document
                     $relative_path = self::getPredmetFolderPath($caseId, $db);
@@ -427,6 +429,9 @@ class Predmet_helper
                     $created_by = $doc->created_by ?: 'N/A';
                     $source_badge = '<span class="badge bg-primary">Dolibarr</span>';
                     $edit_button = '';
+                    
+                    // Check for digital signature if it's a PDF
+                    $signature_status = self::getSignatureStatus($relative_path . $doc->filename);
                 }
                 
                 $documentTableHTML .= '<tr>';
@@ -441,6 +446,7 @@ class Predmet_helper
                 $documentTableHTML .= '<td>' . $date_formatted . '</td>';
                 $documentTableHTML .= '<td>' . htmlspecialchars($created_by) . '</td>';
                 $documentTableHTML .= '<td>' . $source_badge . '</td>';
+                $documentTableHTML .= '<td>' . $signature_status . '</td>';
                 $documentTableHTML .= '<td>';
                 $documentTableHTML .= $edit_button;
                 $documentTableHTML .= '<a href="' . $download_url . '" class="btn btn-outline-primary btn-sm" target="_blank">';
@@ -466,6 +472,46 @@ class Predmet_helper
         }
     }
 
+    /**
+     * Get signature status for a document
+     */
+    public static function getSignatureStatus($relative_file_path)
+    {
+        $full_path = DOL_DATA_ROOT . '/ecm/' . $relative_file_path;
+        
+        // Only check PDF files
+        if (strtolower(pathinfo($relative_file_path, PATHINFO_EXTENSION)) !== 'pdf') {
+            return '<span class="text-muted">-</span>';
+        }
+        
+        if (!file_exists($full_path)) {
+            return '<span class="text-muted"><i class="fas fa-question"></i></span>';
+        }
+
+        require_once __DIR__ . '/pdf_signature_detector.class.php';
+        $summary = PDF_Signature_Detector::getSignatureSummary($full_path);
+        
+        switch ($summary['status']) {
+            case 'signed':
+                $icon = 'fas fa-certificate text-success';
+                $title = 'Digitalno potpisan';
+                if (!empty($summary['signatures'])) {
+                    $sig = $summary['signatures'][0];
+                    $title .= ' - ' . $sig['signer'];
+                    if ($sig['date']) {
+                        $title .= ' (' . $sig['date'] . ')';
+                    }
+                }
+                return '<span title="' . htmlspecialchars($title) . '"><i class="' . $icon . '"></i></span>';
+                
+            case 'unsigned':
+                return '<span title="Nije digitalno potpisan"><i class="fas fa-file text-muted"></i></span>';
+                
+            case 'error':
+            default:
+                return '<span title="Greška pri provjeri potpisa"><i class="fas fa-exclamation-triangle text-warning"></i></span>';
+        }
+    }
     /**
      * Get combined documents from both Dolibarr ECM and Nextcloud
      * Optimized for ECM-Nextcloud mount scenarios

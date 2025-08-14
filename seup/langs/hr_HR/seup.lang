@@ -214,3 +214,19 @@ ECMAutoScanEnabled=Automatsko ECM skeniranje omogućeno
 ECMAutoScanDisabled=Automatsko ECM skeniranje onemogućeno
 ScanningECMFolders=Skeniram ECM mape...
 ECMScanResults=Rezultati ECM skeniranja
+
+# Digital signatures
+DigitalSignature=Digitalni potpis
+SignatureDetected=Detektiran digitalni potpis
+SignatureNotDetected=Nema digitalnog potpisa
+CheckSignatures=Provjeri potpise
+SignatureValidation=Validacija potpisa
+QualifiedSignature=Kvalificirani digitalni potpis
+SignatureSigner=Potpisnik
+SignatureDate=Datum potpisa
+SignatureIssuer=Izdavatelj certifikata
+FINASignature=FINA kvalificirani potpis
+SignatureCheckComplete=Provjera potpisa završena
+SignedDocuments=Potpisani dokumenti
+UnsignedDocuments=Nepotpisani dokumenti
+SignatureError=Greška pri provjeri potpisa
