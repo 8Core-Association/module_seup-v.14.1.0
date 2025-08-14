@@ -745,54 +745,6 @@ document.addEventListener("DOMContentLoaded", function() {
         });
     }
     function performEcmRescan(button) {
-    function performSignatureCheck(button) {
-        button.classList.add('seup-loading');
-        
-        const formData = new FormData();
-        formData.append('action', 'check_signatures');
-        
-        fetch('', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                let signedCount = 0;
-                let unsignedCount = 0;
-                
-                Object.values(data.results).forEach(result => {
-                    if (result.status === 'signed') signedCount++;
-                    else if (result.status === 'unsigned') unsignedCount++;
-                });
-                
-                let message = `Provjera potpisa završena! `;
-                message += `PDF datoteka: ${data.total_pdfs}, `;
-                message += `potpisano: ${signedCount}, `;
-                message += `nepotpisano: ${unsignedCount}`;
-                
-                showMessage(message, 'success');
-                
-                // Show detailed results in console for now
-                console.log('Signature check results:', data.results);
-                
-                // Refresh documents list to show signature icons
-                setTimeout(() => {
-                    refreshDocumentsList();
-                }, 1000);
-            } else {
-                showMessage('Greška pri provjeri potpisa: ' + data.error, 'error');
-            }
-        })
-        .catch(error => {
-            console.error('Signature check error:', error);
-            showMessage('Došlo je do greške pri provjeri potpisa', 'error');
-        })
-        .finally(() => {
-            button.classList.remove('seup-loading');
-        });
-    }
-
         button.classList.add('seup-loading');
         
         const formData = new FormData();
@@ -884,6 +836,7 @@ document.addEventListener("DOMContentLoaded", function() {
             button.classList.remove('seup-loading');
         });
     }
+
     function performSync(syncType, button) {
         button.classList.add('seup-loading');
         
@@ -1000,23 +953,12 @@ document.addEventListener("DOMContentLoaded", function() {
                         uploadSectionCurrent.parentNode.appendChild(clonedElement);
                         newElement = newElement.nextElementSibling;
                     }
-                    
-                    // Re-add file type icons and update statistics
-                    addFileTypeIcons();
-                    updateStatistics();
-                    
-                    // Add fade-in animation to new content
-                    const newDocuments = currentTab.querySelectorAll('.seup-documents-table tbody tr');
-                    newDocuments.forEach((row, index) => {
-                        row.style.opacity = '0';
-                        row.style.transform = 'translateY(20px)';
-                        setTimeout(() => {
-                            row.style.transition = 'all 0.3s ease-out';
-                            row.style.opacity = '1';
-                            row.style.transform = 'translateY(0)';
-                        }, index * 100);
-                    });
                 }
+                
+                // Update statistics after content is loaded
+                setTimeout(() => {
+                    updateStatistics();
+                }, 100);
             } else {
                 // Fallback: remove loading and restore original content
                 if (loadingDiv && loadingDiv.parentNode) {
@@ -1041,45 +983,9 @@ document.addEventListener("DOMContentLoaded", function() {
                     }
                 }, 3000);
             }
-        })
-    }
-
-    // Function to add file type icons to document table
-    function addFileTypeIcons() {
-        document.querySelectorAll('.seup-documents-table tbody tr').forEach(row => {
-            const nameCell = row.querySelector('td:first-child');
-            if (nameCell && !nameCell.querySelector('.seup-file-icon')) {
-                const filename = nameCell.textContent.trim();
-                const extension = filename.split('.').pop().toLowerCase();
-                
-                let iconClass = 'default';
-                let iconName = 'fa-file';
-                
-                if (['pdf'].includes(extension)) {
-                    iconClass = 'pdf';
-                    iconName = 'fa-file-pdf';
-                } else if (['doc', 'docx'].includes(extension)) {
-                    iconClass = 'doc';
-                    iconName = 'fa-file-word';
-                } else if (['xls', 'xlsx'].includes(extension)) {
-                    iconClass = 'xls';
-                    iconName = 'fa-file-excel';
-                } else if (['jpg', 'jpeg', 'png'].includes(extension)) {
-                    iconClass = 'img';
-                    iconName = 'fa-file-image';
-                }
-                
-                nameCell.innerHTML = `
-                    <div class="seup-file-icon ${iconClass}">
-                        <i class="fas ${iconName}"></i>
-                    </div>
-                    <span class="seup-document-name">${filename}</span>
-                `;
-                nameCell.style.display = 'flex';
-                nameCell.style.alignItems = 'center';
-            }
         });
     }
+
     // PDF generation
     if (pdfButton) {
         pdfButton.addEventListener("click", function() {
@@ -1164,9 +1070,6 @@ document.addEventListener("DOMContentLoaded", function() {
 
     // Initialize statistics
     updateStatistics();
-
-    // Add file type icons to document table
-    addFileTypeIcons();
 
     // Auto-refresh documents every 30 seconds if Nextcloud is enabled
     <?php if (Cloud_helper::isNextcloudConfigured()): ?>
