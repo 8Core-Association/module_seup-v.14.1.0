@@ -459,6 +459,7 @@ class Predmet_helper
 
     /**
      * Get combined documents from both Dolibarr ECM and Nextcloud
+     * Optimized for ECM-Nextcloud mount scenarios
      */
     public static function getCombinedDocuments($db, $conf, $caseId)
     {
@@ -496,26 +497,48 @@ class Predmet_helper
             }
         }
         
-        // 2. Get documents from Nextcloud
+        // 2. Get additional Nextcloud metadata (only if ECM is not Nextcloud mounted)
         try {
             require_once __DIR__ . '/nextcloud_api.class.php';
             $nextcloudApi = new NextcloudAPI($db, $conf);
-            $nextcloudFiles = $nextcloudApi->getFilesFromFolder($relative_path);
             
-            foreach ($nextcloudFiles as $file) {
-                // Convert to object format similar to ECM
-                $fileObj = new stdClass();
-                $fileObj->filename = $file['filename'];
-                $fileObj->size = $file['size'];
-                $fileObj->last_modified = $file['last_modified'];
-                $fileObj->download_url = $file['download_url'];
-                $fileObj->edit_url = $file['edit_url'];
-                $fileObj->tags = $file['tags'];
-                $fileObj->comments_count = $file['comments_count'];
-                $fileObj->is_shared = $file['is_shared'];
-                $fileObj->source = 'nextcloud';
+            if (!$nextcloudApi->isECMNextcloudMounted()) {
+                // Traditional separate Nextcloud storage
+                $nextcloudFiles = $nextcloudApi->getFilesFromFolder($relative_path);
                 
-                $allDocuments[] = $fileObj;
+                foreach ($nextcloudFiles as $file) {
+                    // Convert to object format similar to ECM
+                    $fileObj = new stdClass();
+                    $fileObj->filename = $file['filename'];
+                    $fileObj->size = $file['size'];
+                    $fileObj->last_modified = $file['last_modified'];
+                    $fileObj->download_url = $file['download_url'];
+                    $fileObj->edit_url = $file['edit_url'];
+                    $fileObj->tags = $file['tags'];
+                    $fileObj->comments_count = $file['comments_count'];
+                    $fileObj->is_shared = $file['is_shared'];
+                    $fileObj->source = 'nextcloud';
+                    
+                    $allDocuments[] = $fileObj;
+                }
+            } else {
+                // ECM is Nextcloud mounted - enhance ECM records with Nextcloud metadata
+                $nextcloudFiles = $nextcloudApi->getFilesFromFolder($relative_path);
+                
+                // Enhance existing ECM records with Nextcloud metadata
+                foreach ($allDocuments as $ecmDoc) {
+                    foreach ($nextcloudFiles as $ncFile) {
+                        if ($ecmDoc->filename === $ncFile['filename']) {
+                            // Add Nextcloud-specific metadata to ECM record
+                            $ecmDoc->nextcloud_tags = $ncFile['tags'];
+                            $ecmDoc->nextcloud_comments = $ncFile['comments_count'];
+                            $ecmDoc->nextcloud_shared = $ncFile['is_shared'];
+                            $ecmDoc->edit_url = $ncFile['edit_url'];
+                            $ecmDoc->enhanced_with_nextcloud = true;
+                            break;
+                        }
+                    }
+                }
             }
         } catch (Exception $e) {
             dol_syslog("Error fetching Nextcloud documents: " . $e->getMessage(), LOG_WARNING);

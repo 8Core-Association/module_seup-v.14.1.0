@@ -147,34 +147,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Handle document upload
     if (isset($_POST['action']) && GETPOST('action') === 'upload_document') {
-        // Upload to both Dolibarr ECM and Nextcloud
+        // Upload to Dolibarr ECM
         $uploadResult = Request_Handler::handleUploadDocument($db, $upload_dir, $langs, $conf, $user);
         
-        // Also upload to Nextcloud if upload was successful
+        // Only upload to Nextcloud if ECM is NOT mounted as Nextcloud external disk
         if ($uploadResult !== false) {
             try {
                 require_once __DIR__ . '/../class/nextcloud_api.class.php';
                 $nextcloudApi = new NextcloudAPI($db, $conf);
-                $relative_path = Predmet_helper::getPredmetFolderPath($caseId, $db);
                 
-                // Create folder in Nextcloud if it doesn't exist
-                $nextcloudApi->createFolder($relative_path);
-                
-                // Upload file to Nextcloud
-                $uploadedFile = $_FILES['document'];
-                if (isset($uploadedFile['tmp_name']) && is_uploaded_file($uploadedFile['tmp_name'])) {
-                    $filename = basename($uploadedFile['name']);
-                    $nextcloudSuccess = $nextcloudApi->uploadFile(
-                        $uploadedFile['tmp_name'],
-                        $relative_path,
-                        $filename
-                    );
+                // Only upload if ECM is not Nextcloud mounted
+                if (!$nextcloudApi->isECMNextcloudMounted()) {
+                    $relative_path = Predmet_helper::getPredmetFolderPath($caseId, $db);
                     
-                    if ($nextcloudSuccess) {
-                        dol_syslog("File successfully uploaded to Nextcloud: " . $filename, LOG_INFO);
-                    } else {
-                        dol_syslog("Failed to upload file to Nextcloud: " . $filename, LOG_WARNING);
+                    // Create folder in Nextcloud if it doesn't exist
+                    $nextcloudApi->createFolder($relative_path);
+                    
+                    // Upload file to Nextcloud
+                    $uploadedFile = $_FILES['document'];
+                    if (isset($uploadedFile['tmp_name']) && is_uploaded_file($uploadedFile['tmp_name'])) {
+                        $filename = basename($uploadedFile['name']);
+                        $nextcloudSuccess = $nextcloudApi->uploadFile(
+                            $uploadedFile['tmp_name'],
+                            $relative_path,
+                            $filename
+                        );
+                        
+                        if ($nextcloudSuccess) {
+                            dol_syslog("File successfully uploaded to Nextcloud: " . $filename, LOG_INFO);
+                        } else {
+                            dol_syslog("Failed to upload file to Nextcloud: " . $filename, LOG_WARNING);
+                        }
                     }
+                } else {
+                    dol_syslog("ECM is Nextcloud mounted - skipping separate Nextcloud upload", LOG_INFO);
                 }
             } catch (Exception $e) {
                 dol_syslog("Nextcloud upload error: " . $e->getMessage(), LOG_WARNING);

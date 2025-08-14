@@ -12,6 +12,7 @@ class NextcloudAPI
     private $password;
     private $db;
     private $conf;
+    private $isECMNextcloudMounted;
 
     public function __construct($db, $conf)
     {
@@ -22,6 +23,34 @@ class NextcloudAPI
         $this->baseUrl = getDolGlobalString('NEXTCLOUD_URL', 'https://your-nextcloud.com');
         $this->username = getDolGlobalString('NEXTCLOUD_USERNAME', '');
         $this->password = getDolGlobalString('NEXTCLOUD_PASSWORD', '');
+        
+        // Check if ECM is mounted as Nextcloud external disk
+        $this->isECMNextcloudMounted = $this->checkECMNextcloudMount();
+    }
+
+    /**
+     * Check if Dolibarr ECM is configured as Nextcloud external disk
+     */
+    private function checkECMNextcloudMount()
+    {
+        // Check if ECM data directory is mounted as Nextcloud external storage
+        $ecmPath = DOL_DATA_ROOT . '/ecm';
+        $nextcloudIndicator = $ecmPath . '/.nextcloud_mount';
+        
+        // Alternative: Check if ECM path contains Nextcloud data directory pattern
+        $isNextcloudPath = (strpos($ecmPath, 'nextcloud') !== false || 
+                           strpos($ecmPath, '/data/') !== false ||
+                           getDolGlobalString('ECM_IS_NEXTCLOUD_MOUNT', '0') === '1');
+        
+        return file_exists($nextcloudIndicator) || $isNextcloudPath;
+    }
+
+    /**
+     * Check if ECM is mounted as Nextcloud external disk
+     */
+    public function isECMNextcloudMounted()
+    {
+        return $this->isECMNextcloudMounted;
     }
 
     /**
@@ -174,9 +203,16 @@ class NextcloudAPI
 
     /**
      * Upload file to Nextcloud
+     * Only used if ECM is NOT mounted as Nextcloud external disk
      */
     public function uploadFile($localFilePath, $nextcloudPath, $filename)
     {
+        // Skip upload if ECM is already Nextcloud mounted
+        if ($this->isECMNextcloudMounted) {
+            dol_syslog("Skipping Nextcloud upload - ECM is already Nextcloud mounted", LOG_INFO);
+            return true; // Return success since file is already there
+        }
+        
         $url = $this->baseUrl . '/remote.php/dav/files/' . $this->username . '/' . ltrim($nextcloudPath, '/') . '/' . $filename;
         
         $ch = curl_init();
@@ -202,9 +238,16 @@ class NextcloudAPI
 
     /**
      * Create folder in Nextcloud
+     * Only used if ECM is NOT mounted as Nextcloud external disk
      */
     public function createFolder($folderPath)
     {
+        // Skip folder creation if ECM is already Nextcloud mounted
+        if ($this->isECMNextcloudMounted) {
+            dol_syslog("Skipping Nextcloud folder creation - ECM is already Nextcloud mounted", LOG_INFO);
+            return true; // Return success since folder will be created by ECM
+        }
+        
         $url = $this->baseUrl . '/remote.php/dav/files/' . $this->username . '/' . ltrim($folderPath, '/');
         
         $ch = curl_init();

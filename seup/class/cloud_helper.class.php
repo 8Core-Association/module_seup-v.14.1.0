@@ -111,6 +111,7 @@ class Cloud_helper
 
     /**
      * Sync ECM files to Nextcloud (upload missing files)
+     * Optimized for ECM-Nextcloud mount detection
      */
     public static function syncECMToNextcloud($db, $conf, $user, $predmet_id)
     {
@@ -123,6 +124,16 @@ class Cloud_helper
             require_once __DIR__ . '/predmet_helper.class.php';
 
             $nextcloudApi = new NextcloudAPI($db, $conf);
+            
+            // If ECM is mounted as Nextcloud external disk, skip upload
+            if ($nextcloudApi->isECMNextcloudMounted()) {
+                return [
+                    'success' => true, 
+                    'message' => 'ECM is mounted as Nextcloud external disk - no upload needed', 
+                    'synced' => 0
+                ];
+            }
+            
             $relative_path = Predmet_helper::getPredmetFolderPath($predmet_id, $db);
             
             // Get ECM files for this predmet
@@ -189,13 +200,26 @@ class Cloud_helper
 
     /**
      * Bidirectional sync - sync both ways
+     * Optimized for ECM-Nextcloud mount scenarios
      */
     public static function bidirectionalSync($db, $conf, $user, $predmet_id)
     {
-        $results = [
-            'nextcloud_to_ecm' => self::syncNextcloudToECM($db, $conf, $user, $predmet_id),
-            'ecm_to_nextcloud' => self::syncECMToNextcloud($db, $conf, $user, $predmet_id)
-        ];
+        require_once __DIR__ . '/nextcloud_api.class.php';
+        $nextcloudApi = new NextcloudAPI($db, $conf);
+        
+        if ($nextcloudApi->isECMNextcloudMounted()) {
+            // If ECM is Nextcloud mounted, only sync metadata from Nextcloud to ECM
+            $results = [
+                'nextcloud_to_ecm' => self::syncNextcloudToECM($db, $conf, $user, $predmet_id),
+                'ecm_to_nextcloud' => ['success' => true, 'message' => 'ECM mounted - no upload needed', 'synced' => 0]
+            ];
+        } else {
+            // Traditional bidirectional sync
+            $results = [
+                'nextcloud_to_ecm' => self::syncNextcloudToECM($db, $conf, $user, $predmet_id),
+                'ecm_to_nextcloud' => self::syncECMToNextcloud($db, $conf, $user, $predmet_id)
+            ];
+        }
 
         $totalSynced = $results['nextcloud_to_ecm']['synced'] + $results['ecm_to_nextcloud']['synced'];
         

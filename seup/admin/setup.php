@@ -128,6 +128,11 @@ $item->cssClass = 'minwidth300';
 // Nextcloud Enable/Disable
 $formSetup->newItem('NEXTCLOUD_ENABLED')->setAsYesNo();
 
+// ECM Nextcloud Mount detection
+$item = $formSetup->newItem('ECM_IS_NEXTCLOUD_MOUNT');
+$item->setAsYesNo();
+$item->fieldAttr['help'] = 'Enable if Dolibarr ECM directory is mounted as Nextcloud external storage';
+
 // Test connection button (will be handled by JavaScript)
 $item = $formSetup->newItem('NEXTCLOUD_TEST');
 $item->fieldOverride = '<button type="button" id="testNextcloudBtn" class="button">Test Connection</button><div id="testResult" style="margin-top: 10px;"></div>';

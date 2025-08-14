@@ -190,3 +190,11 @@ Configured=Konfigurirano
 PartiallyConfigured=Djelomično konfigurirano
 FilesFound=datoteka pronađeno
 ErrorInvalidURL=Neispravan URL format
+
+# ECM Nextcloud Mount
+ECM_IS_NEXTCLOUD_MOUNT=ECM je Nextcloud eksterni disk
+ECM_IS_NEXTCLOUD_MOUNTTooltip=Označite ako je Dolibarr ECM direktorij montiran kao Nextcloud vanjska pohrana
+ECMNextcloudMountDetected=Detektiran je ECM kao Nextcloud mount
+ECMNextcloudMountNotDetected=ECM nije Nextcloud mount
+NextcloudUploadSkipped=Nextcloud upload preskočen - ECM je već Nextcloud
+NextcloudMetadataEnhanced=ECM zapisi obogaćeni Nextcloud metapodacima
