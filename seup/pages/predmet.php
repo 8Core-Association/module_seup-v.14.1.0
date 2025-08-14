@@ -745,6 +745,54 @@ document.addEventListener("DOMContentLoaded", function() {
         });
     }
     function performEcmRescan(button) {
+    function performSignatureCheck(button) {
+        button.classList.add('seup-loading');
+        
+        const formData = new FormData();
+        formData.append('action', 'check_signatures');
+        
+        fetch('', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                let signedCount = 0;
+                let unsignedCount = 0;
+                
+                Object.values(data.results).forEach(result => {
+                    if (result.status === 'signed') signedCount++;
+                    else if (result.status === 'unsigned') unsignedCount++;
+                });
+                
+                let message = `Provjera potpisa završena! `;
+                message += `PDF datoteka: ${data.total_pdfs}, `;
+                message += `potpisano: ${signedCount}, `;
+                message += `nepotpisano: ${unsignedCount}`;
+                
+                showMessage(message, 'success');
+                
+                // Show detailed results in console for now
+                console.log('Signature check results:', data.results);
+                
+                // Refresh documents list to show signature icons
+                setTimeout(() => {
+                    refreshDocumentsList();
+                }, 1000);
+            } else {
+                showMessage('Greška pri provjeri potpisa: ' + data.error, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Signature check error:', error);
+            showMessage('Došlo je do greške pri provjeri potpisa', 'error');
+        })
+        .finally(() => {
+            button.classList.remove('seup-loading');
+        });
+    }
+
         button.classList.add('seup-loading');
         
         const formData = new FormData();
