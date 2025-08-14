@@ -691,7 +691,7 @@ document.addEventListener("DOMContentLoaded", function() {
                             uploadProgress.style.display = 'none';
                             document.getElementById("documentInput").value = "";
                             showMessage('Dokument je uspješno uploadovan!', 'success');
-                            // Refresh only the documents tab instead of full page reload
+                            // Refresh documents list immediately
                             refreshDocumentsList();
                         }, 1000);
                     } else {
@@ -925,64 +925,123 @@ document.addEventListener("DOMContentLoaded", function() {
 
     // Function to refresh documents list
     function refreshDocumentsList() {
-        // Create a form to refresh the documents
-        const refreshForm = document.createElement('form');
-        refreshForm.method = 'POST';
-        refreshForm.style.display = 'none';
+        // Show loading state
+        const documentsSection = document.querySelector('#tab-dokumenti');
+        const originalContent = documentsSection.innerHTML;
         
-        const actionInput = document.createElement('input');
-        actionInput.type = 'hidden';
-        actionInput.name = 'action';
-        actionInput.value = 'refresh_documents';
+        // Add loading indicator
+        const loadingDiv = document.createElement('div');
+        loadingDiv.className = 'seup-loading-documents';
+        loadingDiv.innerHTML = `
+            <div style="text-align: center; padding: 40px;">
+                <i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: var(--primary-500);"></i>
+                <p style="margin-top: 16px; color: var(--secondary-600);">Osvježavam popis dokumenata...</p>
+            </div>
+        `;
         
-        const caseIdInput = document.createElement('input');
-        caseIdInput.type = 'hidden';
-        caseIdInput.name = 'case_id';
-        caseIdInput.value = <?php echo $caseId; ?>;
+        const uploadSection = documentsSection.querySelector('.seup-upload-section');
+        if (uploadSection && uploadSection.nextElementSibling) {
+            uploadSection.parentNode.insertBefore(loadingDiv, uploadSection.nextElementSibling);
+            // Hide existing content temporarily
+            let nextEl = uploadSection.nextElementSibling;
+            while (nextEl && !nextEl.classList.contains('seup-loading-documents')) {
+                if (nextEl !== loadingDiv) {
+                    nextEl.style.display = 'none';
+                }
+                nextEl = nextEl.nextElementSibling;
+            }
+        }
         
-        refreshForm.appendChild(actionInput);
-        refreshForm.appendChild(caseIdInput);
-        document.body.appendChild(refreshForm);
+        // Fetch updated documents
+        const formData = new FormData();
+        formData.append('action', 'refresh_documents');
+        formData.append('case_id', <?php echo $caseId; ?>);
         
-        // Submit form to get updated documents list
         fetch('', {
             method: 'POST',
-            body: new FormData(refreshForm)
+            body: formData
         })
         .then(response => response.text())
         .then(html => {
             // Extract the documents table from the response
             const parser = new DOMParser();
             const doc = parser.parseFromString(html, 'text/html');
-            const newDocumentsContent = doc.querySelector('#tab-dokumenti');
+            const newTabContent = doc.querySelector('#tab-dokumenti');
             
-            if (newDocumentsContent) {
-                const currentTab = document.getElementById('tab-dokumenti');
-                if (currentTab) {
-                    // Update only the documents content
-                    const documentsSection = currentTab.querySelector('.seup-upload-section').nextElementSibling;
-                    const newDocumentsSection = newDocumentsContent.querySelector('.seup-upload-section').nextElementSibling;
-                    
-                    if (documentsSection && newDocumentsSection) {
-                        documentsSection.innerHTML = newDocumentsSection.innerHTML;
-                        
-                        // Re-add file type icons
-                        addFileTypeIcons();
-                        
-                        // Update statistics
-                        updateStatistics();
-                    }
+            if (newTabContent) {
+                // Remove loading indicator
+                if (loadingDiv && loadingDiv.parentNode) {
+                    loadingDiv.remove();
                 }
+                
+                // Show hidden elements
+                const hiddenElements = documentsSection.querySelectorAll('[style*="display: none"]');
+                hiddenElements.forEach(el => {
+                    el.style.display = '';
+                });
+                
+                const currentTab = document.getElementById('tab-dokumenti');
+                const uploadSectionCurrent = currentTab.querySelector('.seup-upload-section');
+                const uploadSectionNew = newTabContent.querySelector('.seup-upload-section');
+                
+                if (uploadSectionCurrent && uploadSectionNew) {
+                    // Replace everything after upload section with new content
+                    let elementToRemove = uploadSectionCurrent.nextElementSibling;
+                    while (elementToRemove) {
+                        const nextSibling = elementToRemove.nextElementSibling;
+                        elementToRemove.remove();
+                        elementToRemove = nextSibling;
+                    }
+                    
+                    // Add new content after upload section
+                    let newElement = uploadSectionNew.nextElementSibling;
+                    while (newElement) {
+                        const clonedElement = newElement.cloneNode(true);
+                        uploadSectionCurrent.parentNode.appendChild(clonedElement);
+                        newElement = newElement.nextElementSibling;
+                    }
+                    
+                    // Re-add file type icons and update statistics
+                    addFileTypeIcons();
+                    updateStatistics();
+                    
+                    // Add fade-in animation to new content
+                    const newDocuments = currentTab.querySelectorAll('.seup-documents-table tbody tr');
+                    newDocuments.forEach((row, index) => {
+                        row.style.opacity = '0';
+                        row.style.transform = 'translateY(20px)';
+                        setTimeout(() => {
+                            row.style.transition = 'all 0.3s ease-out';
+                            row.style.opacity = '1';
+                            row.style.transform = 'translateY(0)';
+                        }, index * 100);
+                    });
+                }
+            } else {
+                // Fallback: remove loading and restore original content
+                if (loadingDiv && loadingDiv.parentNode) {
+                    loadingDiv.remove();
+                }
+                console.warn('Could not parse new documents content');
             }
         })
         .catch(error => {
             console.error('Error refreshing documents:', error);
-            // Fallback to full page reload
-            window.location.reload();
+            // Remove loading indicator and show error
+            if (loadingDiv && loadingDiv.parentNode) {
+                loadingDiv.innerHTML = `
+                    <div style="text-align: center; padding: 40px;">
+                        <i class="fas fa-exclamation-triangle" style="font-size: 2rem; color: var(--error-500);"></i>
+                        <p style="margin-top: 16px; color: var(--error-600);">Greška pri osvježavanju. Molimo osvježite stranicu.</p>
+                    </div>
+                `;
+                setTimeout(() => {
+                    if (loadingDiv && loadingDiv.parentNode) {
+                        loadingDiv.remove();
+                    }
+                }, 3000);
+            }
         })
-        .finally(() => {
-            document.body.removeChild(refreshForm);
-        });
     }
 
     // Function to add file type icons to document table
