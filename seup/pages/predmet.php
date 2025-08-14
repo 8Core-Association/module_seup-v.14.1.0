@@ -212,6 +212,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // The JavaScript will extract the documents section from the response
     }
 
+    // Handle ECM rescan request
+    if (isset($_POST['action']) && GETPOST('action') === 'rescan_ecm') {
+        header('Content-Type: application/json');
+        ob_end_clean();
+        
+        require_once __DIR__ . '/../class/ecm_scanner.class.php';
+        $result = ECM_Scanner::scanPredmetFolder($db, $conf, $user, $caseId);
+        
+        echo json_encode($result);
+        exit;
+    }
+
     // File existence check
     if ($_SERVER['REQUEST_METHOD'] === 'GET' && GETPOST('action') === 'check_file_exists') {
         ob_end_clean();
@@ -393,7 +405,24 @@ print '</div>';
 if (Cloud_helper::isNextcloudConfigured()) {
     $syncStatus = Cloud_helper::getSyncStatus($db, $conf, $caseId);
     
-    if ($syncStatus['sync_needed']) {
+    // Always show ECM rescan option for Nextcloud mounted ECM
+    require_once __DIR__ . '/../class/nextcloud_api.class.php';
+    $nextcloudApi = new NextcloudAPI($db, $conf);
+    
+    if ($nextcloudApi->isECMNextcloudMounted()) {
+        print '<div class="seup-sync-alert">';
+        print '<div class="seup-sync-content">';
+        print '<i class="fas fa-sync-alt seup-sync-icon"></i>';
+        print '<div class="seup-sync-text">';
+        print 'ECM je konfiguriran kao Nextcloud eksterni disk. ';
+        print 'Kliknite za skeniranje novih datoteka iz Nextcloud mape.';
+        print '</div>';
+        print '<button type="button" class="seup-btn seup-btn-warning seup-btn-sm" id="rescanEcmBtn">';
+        print '<i class="fas fa-search me-2"></i>Skeniraj ECM';
+        print '</button>';
+        print '</div>';
+        print '</div>';
+    } elseif ($syncStatus['sync_needed']) {
         print '<div class="seup-sync-alert">';
         print '<div class="seup-sync-content">';
         print '<i class="fas fa-cloud-download-alt seup-sync-icon"></i>';
@@ -435,6 +464,14 @@ print '<button type="button" class="seup-btn seup-btn-secondary">';
 print '<i class="fas fa-sort me-2"></i>Sortiraj';
 print '</button>';
 if (Cloud_helper::isNextcloudConfigured()) {
+    require_once __DIR__ . '/../class/nextcloud_api.class.php';
+    $nextcloudApi = new NextcloudAPI($db, $conf);
+    
+    if ($nextcloudApi->isECMNextcloudMounted()) {
+        print '<button type="button" class="seup-btn seup-btn-primary" id="rescanEcmBtn2">';
+        print '<i class="fas fa-search me-2"></i>Skeniraj ECM';
+        print '</button>';
+    }
     print '<button type="button" class="seup-btn seup-btn-secondary" id="manualSyncBtn">';
     print '<i class="fas fa-cloud-download-alt me-2"></i>Ručna Sinkronizacija';
     print '</button>';
@@ -641,6 +678,8 @@ document.addEventListener("DOMContentLoaded", function() {
     // Nextcloud sync functionality
     const syncBtn = document.getElementById('syncBtn');
     const manualSyncBtn = document.getElementById('manualSyncBtn');
+    const rescanEcmBtn = document.getElementById('rescanEcmBtn');
+    const rescanEcmBtn2 = document.getElementById('rescanEcmBtn2');
 
     if (syncBtn) {
         syncBtn.addEventListener('click', function() {
@@ -651,6 +690,63 @@ document.addEventListener("DOMContentLoaded", function() {
     if (manualSyncBtn) {
         manualSyncBtn.addEventListener('click', function() {
             performSync('bidirectional', this);
+        });
+    }
+
+    if (rescanEcmBtn) {
+        rescanEcmBtn.addEventListener('click', function() {
+            performEcmRescan(this);
+        });
+    }
+
+    if (rescanEcmBtn2) {
+        rescanEcmBtn2.addEventListener('click', function() {
+            performEcmRescan(this);
+        });
+    }
+
+    function performEcmRescan(button) {
+        button.classList.add('seup-loading');
+        
+        const formData = new FormData();
+        formData.append('action', 'rescan_ecm');
+        
+        fetch('', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                let message = `ECM skeniranje završeno! `;
+                message += `Pronađeno: ${data.files_found} datoteka, `;
+                message += `u bazi: ${data.files_in_db}, `;
+                message += `dodano: ${data.files_added}`;
+                
+                showMessage(message, 'success');
+                
+                // Hide sync alert if files were added
+                if (data.files_added > 0) {
+                    const syncAlert = document.querySelector('.seup-sync-alert');
+                    if (syncAlert) {
+                        syncAlert.style.display = 'none';
+                    }
+                    
+                    // Refresh documents list
+                    setTimeout(() => {
+                        refreshDocumentsList();
+                    }, 1000);
+                }
+            } else {
+                showMessage('Greška pri skeniranju ECM-a: ' + data.error, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('ECM rescan error:', error);
+            showMessage('Došlo je do greške pri skeniranju ECM-a', 'error');
+        })
+        .finally(() => {
+            button.classList.remove('seup-loading');
         });
     }
 

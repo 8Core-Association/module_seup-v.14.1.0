@@ -133,9 +133,18 @@ $item = $formSetup->newItem('ECM_IS_NEXTCLOUD_MOUNT');
 $item->setAsYesNo();
 $item->fieldAttr['help'] = 'Enable if Dolibarr ECM directory is mounted as Nextcloud external storage';
 
+// ECM Auto-scan
+$item = $formSetup->newItem('SEUP_ECM_AUTO_SCAN');
+$item->setAsYesNo();
+$item->fieldAttr['help'] = 'Automatically scan ECM folders for new files when accessing predmet pages';
+
 // Test connection button (will be handled by JavaScript)
 $item = $formSetup->newItem('NEXTCLOUD_TEST');
 $item->fieldOverride = '<button type="button" id="testNextcloudBtn" class="button">Test Connection</button><div id="testResult" style="margin-top: 10px;"></div>';
+
+// ECM Scan button
+$item = $formSetup->newItem('ECM_SCAN_ALL');
+$item->fieldOverride = '<button type="button" id="scanAllEcmBtn" class="button">Scan All ECM Folders</button><div id="scanResult" style="margin-top: 10px;"></div>';
 
 // End of definition of parameters
 
@@ -204,6 +213,18 @@ if ($action == 'test_nextcloud') {
     } else {
         echo json_encode(['success' => false, 'error' => 'Connection failed (HTTP ' . $httpCode . ')']);
     }
+    exit;
+}
+
+// Handle ECM scan all request
+if ($action == 'scan_all_ecm') {
+    header('Content-Type: application/json');
+    ob_end_clean();
+    
+    require_once __DIR__ . '/../class/ecm_scanner.class.php';
+    $result = ECM_Scanner::scanAllSeupFolders($db, $conf, $user, 100);
+    
+    echo json_encode($result);
     exit;
 }
 
@@ -441,6 +462,8 @@ print '<script>
 document.addEventListener("DOMContentLoaded", function() {
     const testBtn = document.getElementById("testNextcloudBtn");
     const testResult = document.getElementById("testResult");
+    const scanAllBtn = document.getElementById("scanAllEcmBtn");
+    const scanResult = document.getElementById("scanResult");
     
     if (testBtn) {
         testBtn.addEventListener("click", function() {
@@ -473,6 +496,38 @@ document.addEventListener("DOMContentLoaded", function() {
             .finally(() => {
                 this.disabled = false;
                 this.innerHTML = "<i class=\'fas fa-plug\'></i> Test Connection";
+            });
+        });
+    }
+    
+    if (scanAllBtn) {
+        scanAllBtn.addEventListener("click", function() {
+            this.disabled = true;
+            this.innerHTML = "<i class=\'fas fa-spinner fa-spin\'></i> Skeniram...";
+            scanResult.innerHTML = "";
+            
+            const formData = new FormData();
+            formData.append("action", "scan_all_ecm");
+            formData.append("token", "'.newToken().'");
+            
+            fetch("", {
+                method: "POST",
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    scanResult.innerHTML = "<div class=\'seup-test-success\'><i class=\'fas fa-check-circle\'></i> " + data.message + "</div>";
+                } else {
+                    scanResult.innerHTML = "<div class=\'seup-test-error\'><i class=\'fas fa-times-circle\'></i> " + data.error + "</div>";
+                }
+            })
+            .catch(error => {
+                scanResult.innerHTML = "<div class=\'seup-test-error\'><i class=\'fas fa-times-circle\'></i> Skeniranje neuspješno</div>";
+            })
+            .finally(() => {
+                this.disabled = false;
+                this.innerHTML = "<i class=\'fas fa-search\'></i> Scan All ECM Folders";
             });
         });
     }

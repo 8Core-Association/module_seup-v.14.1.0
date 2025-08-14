@@ -382,6 +382,15 @@ class Predmet_helper
      */
     public static function fetchUploadedDocuments($db, $conf, &$documentTableHTML, $langs, $caseId)
     {
+        // Auto-scan ECM if enabled
+        if (getDolGlobalString('SEUP_ECM_AUTO_SCAN', '0') === '1') {
+            require_once __DIR__ . '/ecm_scanner.class.php';
+            $scanResult = ECM_Scanner::scanPredmetFolder($db, $conf, $GLOBALS['user'], $caseId);
+            if ($scanResult['success'] && $scanResult['files_added'] > 0) {
+                dol_syslog("Auto-scan added " . $scanResult['files_added'] . " files to ECM", LOG_INFO);
+            }
+        }
+        
         // Get documents from both Dolibarr ECM and Nextcloud
         $documents = self::getCombinedDocuments($db, $conf, $caseId);
 
